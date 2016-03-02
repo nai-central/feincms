@@ -42,6 +42,7 @@ from django.utils.translation import ugettext_lazy as _
 
 from feincms.utils import queryset_transform
 
+from .forms import MediaFileTranslationForm
 
 class _NoTranslation(object):
     """Simple marker for when no translations exist for a certain object
@@ -322,5 +323,6 @@ def admin_translationinline(model, inline_class=admin.StackedInline, **kwargs):
     kwargs['extra'] = 1
     kwargs['max_num'] = len(settings.LANGUAGES)
     kwargs['model'] = model
+    kwargs['form'] = MediaFileTranslationForm
     return type(
         str(model.__class__.__name__ + 'Inline'), (inline_class,), kwargs)
