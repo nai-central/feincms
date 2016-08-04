@@ -11,13 +11,6 @@ FeinCMS reads the settings from :mod:`feincms.settings` -- values should be
 overridden by placing them in your project's settings.
 
 
-Content type specific settings
-==============================
-
-``FEINCMS_UPLOAD_PREFIX``: Defaults to ``''``. Defines a prefix which is used
-for file and image content uploads (not used by the media library).
-
-
 Media library settings
 ======================
 
@@ -50,16 +43,6 @@ initialization snippet for the rich text editor. Bundled templates are:
 ``{'TINYMCE_JS_URL': '//tinymce.cachefly.net/4.1/tinymce.min.js'}``. A dictionary
 which is passed to the template mentioned above. Please refer to the templates
 directly to see all available variables.
-
-
-Admin media settings
-====================
-
-``FEINCMS_JQUERY_NO_CONFLICT``: Defaults to ``False``. Django admin's jQuery is
-not available as ``$`` or ``jQuery`` in the browser, but only as
-``django.jQuery``. FeinCMS' jQuery can be made available only as
-``feincms.jQuery`` by setting this variable to ``True``. Scripts should use
-``feincms.jQuery`` anyway.
 
 
 Settings for the tree editor
@@ -114,25 +97,6 @@ pages.
 ``FEINCMS_SINGLETON_TEMPLATE_DELETION_ALLOWED``: Defaults to ``False``.
 Prevent admin page deletion for pages which have been allocated a Template with
 ``singleton=True``.
-
-
-Settings for HTML validation
-============================
-
-These settings are currently only used by the bundled rich text content type.
-
-``FEINCMS_TIDY_HTML``. Defaults to ``False``. If ``True``, HTML will be run
-through a tidy function before saving.
-
-``FEINCMS_TIDY_SHOW_WARNINGS``: Defaults to ``True``.  If ``True``, displays
-form validation errors so the user can see how their HTML has been changed.
-
-``FEINCMS_TIDY_ALLOW_WARNINGS_OVERRIDE``: Defaults to ``True``.  If ``True``,
-users will be allowed to ignore HTML warnings (errors are always blocked).
-
-``FEINCMS_TIDY_FUNCTION``: Defaults to ``feincms.utils.html.tidy.tidy_html``.
-Name of the tidy function - anything which takes ``(html)`` and returns
-``(html, errors, warnings)`` can be used.
 
 
 Various settings

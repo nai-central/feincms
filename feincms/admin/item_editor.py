@@ -10,14 +10,11 @@ import warnings
 
 from django import forms
 from django.contrib.admin.options import InlineModelAdmin
-try:
-    from django.contrib.admin.utils import unquote
-except ImportError:  # Django 1.6
-    from django.contrib.admin.util import unquote
+from django.contrib.admin.utils import unquote
 from django.contrib.auth import get_permission_codename
 from django.http import Http404
 
-from feincms import settings, ensure_completely_loaded
+from feincms import ensure_completely_loaded
 from feincms.extensions import ExtensionModelAdmin
 from feincms.signals import itemeditor_post_save_related
 
@@ -137,12 +134,12 @@ class ItemEditor(ExtensionModelAdmin):
         """ Return extra context parameters for add/change views. """
 
         extra_context = {
+            'request': request,
             'model': self.model,
             'available_templates': getattr(
                 self.model, '_feincms_templates', ()),
             'has_parent_attribute': hasattr(self.model, 'parent'),
             'content_types': self.get_content_type_map(request),
-            'FEINCMS_JQUERY_NO_CONFLICT': settings.FEINCMS_JQUERY_NO_CONFLICT,
             'FEINCMS_CONTENT_FIELDSET_NAME': FEINCMS_CONTENT_FIELDSET_NAME,
         }
 
@@ -206,30 +203,16 @@ class ItemEditor(ExtensionModelAdmin):
         return super(ItemEditor, self).change_view(
             request, object_id, **kwargs)
 
-    # The next two add support for sending a "saving done" signal as soon as
-    # all relevant data have been saved (especially all foreign key relations)
-    # This can be used to keep functionality dependend on item content happy.
-    # NOTE: These two can (and probably should) be replaced by overriding
-    # `save_related` as soon as we don't depend on Django<1.4 any more.
-    def response_add(self, request, obj, *args, **kwargs):
-        r = super(ItemEditor, self).response_add(request, obj, *args, **kwargs)
+    def save_related(self, request, form, formsets, change):
+        super(ItemEditor, self).save_related(
+            request, form, formsets, change)
         itemeditor_post_save_related.send(
-            sender=obj.__class__, instance=obj, created=True)
-        return r
-
-    def response_change(self, request, obj, *args, **kwargs):
-        r = super(ItemEditor, self).response_change(
-            request, obj, *args, **kwargs)
-        itemeditor_post_save_related.send(
-            sender=obj.__class__, instance=obj, created=False)
-        return r
+            sender=form.instance.__class__,
+            instance=form.instance,
+            created=not change)
 
     @property
     def change_form_template(self):
-        return self.get_template_list()
-
-    def get_template_list(self):
-        # retained for backwards-compatibility, change_form_template wraps it
         opts = self.model._meta
         return [
             'admin/feincms/%s/%s/item_editor.html' % (
@@ -245,9 +228,11 @@ class ItemEditor(ExtensionModelAdmin):
         """
 
         fieldsets = copy.deepcopy(
-            super(ItemEditor, self).get_fieldsets(request, obj))
+            super(ItemEditor, self).get_fieldsets(request, obj)
+        )
+        names = [f[0] for f in fieldsets]
 
-        if FEINCMS_CONTENT_FIELDSET_NAME not in dict(fieldsets).keys():
+        if FEINCMS_CONTENT_FIELDSET_NAME not in names:
             fieldsets.append(FEINCMS_CONTENT_FIELDSET)
 
         return fieldsets

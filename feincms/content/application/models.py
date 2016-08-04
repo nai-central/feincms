@@ -1,25 +1,20 @@
-"""
-Third-party application inclusion support.
-"""
-
-from __future__ import absolute_import, unicode_literals
+from __future__ import absolute_import
 
 from email.utils import parsedate
+from functools import partial, wraps
 from time import mktime
-from random import SystemRandom
-import re
+import warnings
 
 from django.conf import settings
 from django.core.cache import cache
 from django.core.urlresolvers import (
-    Resolver404, resolve, reverse, NoReverseMatch,
-    get_script_prefix, set_script_prefix,
+    NoReverseMatch, reverse, get_script_prefix, set_script_prefix,
+    Resolver404, resolve,
 )
 from django.db import models
-from django.db.models import signals
 from django.http import HttpResponse
 from django.template.response import TemplateResponse
-from django.utils.functional import curry as partial, lazy, wraps
+from django.utils.functional import lazy
 from django.utils.http import http_date
 from django.utils.safestring import mark_safe
 from django.utils.translation import get_language, ugettext_lazy as _
@@ -30,8 +25,14 @@ from feincms.translations import short_language_code
 from feincms.utils import get_object
 
 
-APP_REVERSE_CACHE_GENERATION_KEY = 'FEINCMS:APPREVERSECACHE'
-APP_REVERSE_CACHE_TIMEOUT = 300
+APP_REVERSE_CACHE_TIMEOUT = 3
+
+
+__all__ = (
+    'ApplicationContent',
+    'app_reverse', 'app_reverse_lazy', 'permalink',
+    'UnpackTemplateResponse', 'standalone', 'unpack',
+)
 
 
 class UnpackTemplateResponse(TemplateResponse):
@@ -42,18 +43,41 @@ class UnpackTemplateResponse(TemplateResponse):
     _feincms_unpack = True
 
 
+def standalone(view_func):
+    """
+    Marks the view method as standalone view; this means that
+    ``HttpResponse`` objects returned from ``ApplicationContent``
+    are returned directly, without further processing.
+    """
+
+    def inner(request, *args, **kwargs):
+        response = view_func(request, *args, **kwargs)
+        if isinstance(response, HttpResponse):
+            response.standalone = True
+        return response
+    return wraps(view_func)(inner)
+
+
+def unpack(view_func):
+    """
+    Marks the returned response as to-be-unpacked if it is a
+    ``TemplateResponse``.
+    """
+
+    def inner(request, *args, **kwargs):
+        response = view_func(request, *args, **kwargs)
+        if isinstance(response, TemplateResponse):
+            response._feincms_unpack = True
+        return response
+    return wraps(view_func)(inner)
+
+
 def cycle_app_reverse_cache(*args, **kwargs):
-    """Does not really empty the cache; instead it adds a random element to the
-    cache key generation which guarantees that the cache does not yet contain
-    values for all newly generated keys"""
-    value = '%07x' % (SystemRandom().randint(0, 0x10000000))
-    cache.set(APP_REVERSE_CACHE_GENERATION_KEY, value)
-    return value
-
-
-# Set the app_reverse_cache_generation value once per startup (at least).
-# This protects us against offline modifications of the database.
-cycle_app_reverse_cache()
+    warnings.warn(
+        'cycle_app_reverse_cache does nothing and will be removed in'
+        ' a future version of FeinCMS.',
+        DeprecationWarning, stacklevel=2,
+    )
 
 
 def app_reverse(viewname, urlconf=None, args=None, kwargs=None,
@@ -139,9 +163,6 @@ def permalink(func):
     def inner(*args, **kwargs):
         return app_reverse(*func(*args, **kwargs))
     return wraps(func)(inner)
-
-
-APPLICATIONCONTENT_RE = re.compile(r'^([^/]+)/([^/]+)$')
 
 
 class ApplicationContent(models.Model):
@@ -249,14 +270,6 @@ class ApplicationContent(models.Model):
         # embedded instances:
         cls.feincms_item_editor_form = ApplicationContentItemEditorForm
 
-        # Clobber the app_reverse cache when saving application contents
-        # and/or pages
-        page_class = cls.parent.field.rel.to
-        signals.post_save.connect(cycle_app_reverse_cache, sender=cls)
-        signals.post_delete.connect(cycle_app_reverse_cache, sender=cls)
-        signals.post_save.connect(cycle_app_reverse_cache, sender=page_class)
-        signals.post_delete.connect(cycle_app_reverse_cache, sender=page_class)
-
     def __init__(self, *args, **kwargs):
         super(ApplicationContent, self).__init__(*args, **kwargs)
         self.app_config = self.ALL_APPS_CONFIG.get(
@@ -353,10 +366,11 @@ class ApplicationContent(models.Model):
             mimetype = mimetype.split(';')[0]
         mimetype = mimetype.strip()
 
-        return (response.status_code != 200
-                or request.is_ajax()
-                or getattr(response, 'standalone', False)
-                or mimetype not in ('text/html', 'text/plain'))
+        return (
+            response.status_code != 200 or
+            request.is_ajax() or
+            getattr(response, 'standalone', False) or
+            mimetype not in ('text/html', 'text/plain'))
 
     def unpack(self, request, response):
         return getattr(response, '_feincms_unpack', False)
@@ -399,16 +413,11 @@ class ApplicationContent(models.Model):
 
     @classmethod
     def app_reverse_cache_key(self, urlconf_path, **kwargs):
-        cache_generation = cache.get(APP_REVERSE_CACHE_GENERATION_KEY)
-        if cache_generation is None:
-            # This might never happen. Still, better be safe than sorry.
-            cache_generation = cycle_app_reverse_cache()
-
-        return 'FEINCMS:%s:APPCONTENT:L%s:U%s:G%s' % (
+        return 'FEINCMS:%s:APPCONTENT:%s:%s' % (
             getattr(settings, 'SITE_ID', 0),
             get_language(),
             urlconf_path,
-            cache_generation)
+        )
 
     @classmethod
     def closest_match(cls, urlconf_path):

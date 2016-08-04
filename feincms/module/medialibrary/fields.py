@@ -37,7 +37,7 @@ class MediaFileForeignKeyRawIdWidget(ForeignKeyRawIdWidget):
 
             if image:
                 label.append(
-                    '<br /><img src="%s" alt="" style="margin:1em 0 0 10em"'
+                    '<br /><img src="%s" alt="" style="margin:1em 0 0 170px"'
                     '/>' % image)
 
             return ''.join(label)
@@ -69,7 +69,9 @@ class ContentWithMediaFile(models.Model):
         raw_id_fields = ('mediafile',)
 
     mediafile = MediaFileForeignKey(
-        MediaFile, verbose_name=_('media file'), related_name='+')
+        MediaFile, verbose_name=_('media file'), related_name='+',
+        on_delete=models.PROTECT
+    )
 
     class Meta:
         abstract = True
@@ -94,13 +96,3 @@ class AdminFileWithPreviewWidget(AdminFileWidget):
                     '>' % image) + r)
 
         return r
-
-# ------------------------------------------------------------------------
-
-try:
-    from south.modelsinspector import add_introspection_rules
-    add_introspection_rules(
-        rules=[((MediaFileForeignKey,), [], {},)],
-        patterns=["^feincms\.module\.medialibrary\.fields"])
-except ImportError:
-    pass

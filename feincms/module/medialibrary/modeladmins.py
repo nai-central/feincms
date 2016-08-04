@@ -11,10 +11,7 @@ from django.conf import settings as django_settings
 from django.contrib import admin
 from django.contrib import messages
 from django.contrib.auth.decorators import permission_required
-try:
-    from django.contrib.sites.shortcuts import get_current_site
-except ImportError:  # Django 1.6
-    from django.contrib.sites.models import get_current_site
+from django.contrib.sites.shortcuts import get_current_site
 from django.core.files.images import get_image_dimensions
 from django.core.urlresolvers import reverse
 from django.http import HttpResponseRedirect
@@ -124,20 +121,16 @@ class MediaFileAdmin(ExtensionModelAdmin):
     actions = [assign_category, save_as_zipfile]
 
     def get_urls(self):
-        from django.conf.urls import patterns, url
+        from django.conf.urls import url
 
-        urls = super(MediaFileAdmin, self).get_urls()
-        my_urls = patterns(
-            '',
+        return [
             url(
                 r'^mediafile-bulk-upload/$',
                 self.admin_site.admin_view(MediaFileAdmin.bulk_upload),
                 {},
                 name='mediafile_bulk_upload',
             ),
-        )
-
-        return my_urls + urls
+        ] + super(MediaFileAdmin, self).get_urls()
 
     def changelist_view(self, request, extra_context=None):
         if extra_context is None:
@@ -241,20 +234,5 @@ class MediaFileAdmin(ExtensionModelAdmin):
         obj.purge_translation_cache()
         return super(MediaFileAdmin, self).save_model(
             request, obj, form, change)
-
-    def to_field_allowed(self, request, to_field):
-        """
-        This is a workaround for issue #552 which will raise a security
-        exception in the media select popup with django 1.6.6+.
-        According to the release notes, this should be fixed by the
-        yet (2014-09-22) unreleased 1.6.8, 1.5.11.
-
-        Details: https://code.djangoproject.com/ticket/23329#comment:11
-        """
-
-        if to_field == 'id':
-            return True
-
-        return super(MediaFileAdmin, self).to_field_allowed(request, to_field)
 
 # ------------------------------------------------------------------------

@@ -7,17 +7,12 @@ the feincms\_ namespace.
 
 from __future__ import absolute_import, unicode_literals
 
-try:
-    from collections import OrderedDict
-except ImportError:
-    from django.utils.datastructures import SortedDict as OrderedDict
-
+from collections import OrderedDict
 from functools import reduce
 import sys
 import operator
 import warnings
 
-import django
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ImproperlyConfigured
 from django.db import connections, models
@@ -27,7 +22,6 @@ from django.utils.encoding import force_text, python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 
 from feincms import ensure_completely_loaded
-from feincms._internal import get_model
 from feincms.extensions import ExtensionsMixin
 from feincms.utils import copy_model_instance
 
@@ -639,30 +633,6 @@ def create_base_model(inherit_from=models.Model):
                 # everything ok
                 pass
 
-            if django.VERSION < (1, 7):
-                # Next name clash test. Happens when the same content type is
-                # created for two Base subclasses living in the same Django
-                # application (github issues #73 and #150)
-                #
-                # FIXME This code does not work with Django 1.7, because
-                # get_model depends on the app cache which is not ready at
-                # this time yet.
-                try:
-                    other_model = get_model(cls._meta.app_label, class_name)
-                    if other_model is None:
-                        # Django 1.6 and earlier
-                        raise LookupError
-                except LookupError:
-                    pass
-                else:
-                    warnings.warn(
-                        'It seems that the content type %s exists twice in %s.'
-                        ' Use the class_name argument to create_content_type'
-                        ' to avoid this error.' % (
-                            model.__name__,
-                            cls._meta.app_label),
-                        RuntimeWarning)
-
             if not model._meta.abstract:
                 raise ImproperlyConfigured(
                     'Cannot create content type from'
@@ -768,8 +738,8 @@ def create_base_model(inherit_from=models.Model):
                 concrete_type = Page.content_type_for(VideoContent)
             """
 
-            if (not hasattr(cls, '_feincms_content_types')
-                    or not cls._feincms_content_types):
+            if (not hasattr(cls, '_feincms_content_types') or
+                    not cls._feincms_content_types):
                 return None
 
             for type in cls._feincms_content_types:
@@ -795,9 +765,7 @@ def create_base_model(inherit_from=models.Model):
 
             # Check whether any content types have been created for this base
             # class
-            if (
-                    not hasattr(cls, '_feincms_content_types')
-                    or not cls._feincms_content_types):
+            if not getattr(cls, '_feincms_content_types', None):
                 raise ImproperlyConfigured(
                     'You need to create at least one'
                     ' content type for the %s model.' % cls.__name__)

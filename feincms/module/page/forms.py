@@ -6,14 +6,13 @@ from __future__ import absolute_import, unicode_literals
 
 import re
 
+from django.apps import apps
 from django.contrib.admin.widgets import ForeignKeyRawIdWidget
-from django.db.models import FieldDoesNotExist
 from django.forms.models import model_to_dict
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext_lazy as _
 
 from feincms import ensure_completely_loaded
-from feincms._internal import get_model
 
 from mptt.forms import MPTTAdminForm
 
@@ -27,7 +26,7 @@ class RedirectToWidget(ForeignKeyRawIdWidget):
 
         if match:
             matches = match.groupdict()
-            model = get_model(matches['app_label'], matches['model_name'])
+            model = apps.get_model(matches['app_label'], matches['model_name'])
             try:
                 instance = model._default_manager.get(pk=int(matches['pk']))
                 return '&nbsp;<strong>%s (%s)</strong>' % (
@@ -160,15 +159,9 @@ class PageAdminForm(MPTTAdminForm):
             current_id = self.instance.id
             active_pages = active_pages.exclude(id=current_id)
 
-        try:
-            # XXX Django 1.7 allows asking
-            # apps.is_installed('django.contrib.sites')
-            self._meta.model._meta.get_field_by_name('site')
-        except FieldDoesNotExist:
-            pass
-        else:
-            if 'site' in cleaned_data:
-                active_pages = active_pages.filter(site=cleaned_data['site'])
+        sites_is_installed = apps.is_installed('django.contrib.sites')
+        if sites_is_installed and 'site' in cleaned_data:
+            active_pages = active_pages.filter(site=cleaned_data['site'])
 
         # Convert PK in redirect_to field to something nicer for the future
         redirect_to = cleaned_data.get('redirect_to')

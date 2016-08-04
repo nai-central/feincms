@@ -12,9 +12,6 @@ from __future__ import absolute_import, unicode_literals
 
 from django.conf import settings
 
-# ------------------------------------------------------------------------
-# Settings for Generic Content
-
 # e.g. 'uploads' if you would prefer <media root>/uploads/imagecontent/test.jpg
 # to <media root>/imagecontent/test.jpg.
 FEINCMS_UPLOAD_PREFIX = getattr(
@@ -54,15 +51,6 @@ FEINCMS_RICHTEXT_INIT_CONTEXT = getattr(
         'TINYMCE_LINK_LIST_URL': None
     }
 )
-
-# ------------------------------------------------------------------------
-# Admin media settings
-
-#: avoid jQuery conflicts -- scripts should use feincms.jQuery instead of $
-FEINCMS_JQUERY_NO_CONFLICT = getattr(
-    settings,
-    'FEINCMS_JQUERY_NO_CONFLICT',
-    False)
 
 # ------------------------------------------------------------------------
 # Settings for the page module
@@ -112,33 +100,6 @@ FEINCMS_TRANSLATION_POLICY = getattr(
     settings,
     'FEINCMS_TRANSLATION_POLICY',
     'STANDARD')
-
-# ------------------------------------------------------------------------
-# Settings for HTML validation
-
-#: If True, HTML will be run through a tidy function before saving:
-FEINCMS_TIDY_HTML = getattr(
-    settings,
-    'FEINCMS_TIDY_HTML',
-    False)
-#: If True, displays form validation errors so the user can see how their
-#: HTML has been changed:
-FEINCMS_TIDY_SHOW_WARNINGS = getattr(
-    settings,
-    'FEINCMS_TIDY_SHOW_WARNINGS',
-    True)
-#: If True, users will be allowed to ignore HTML warnings (errors are always
-#: blocked):
-FEINCMS_TIDY_ALLOW_WARNINGS_OVERRIDE = getattr(
-    settings,
-    'FEINCMS_TIDY_ALLOW_WARNINGS_OVERRIDE',
-    True)
-#: Name of the tidy function - anything which takes ``(html)`` and returns
-#: ``(html, errors, warnings)`` can be used:
-FEINCMS_TIDY_FUNCTION = getattr(
-    settings,
-    'FEINCMS_TIDY_FUNCTION',
-    'feincms.utils.html.tidy.tidy_html')
 
 # ------------------------------------------------------------------------
 #: Makes the page handling mechanism try to find a cms page with that

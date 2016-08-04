@@ -1,9 +1,6 @@
 from __future__ import absolute_import, unicode_literals
 
-try:
-    from collections import OrderedDict
-except ImportError:
-    from django.utils.datastructures import SortedDict as OrderedDict
+from collections import OrderedDict
 
 from django.http import Http404
 from django.template import Template
@@ -12,7 +9,7 @@ from django.views import generic
 from django.views.generic.base import TemplateResponseMixin
 
 from feincms import settings
-from feincms.views.decorators import standalone
+from feincms.apps import standalone
 
 
 class ContentModelMixin(object):
@@ -61,11 +58,6 @@ class ContentModelMixin(object):
 
     @property
     def model_name(self):
-        "See app_label"
-        return self.__class__.__name__.lower()
-
-    @property
-    def module_name(self):
         "See app_label"
         return self.__class__.__name__.lower()
 
@@ -199,11 +191,11 @@ class ContentObjectMixin(TemplateResponseMixin):
 
             extra_context = self.request._feincms_extra_context
 
-            if (not settings.FEINCMS_ALLOW_EXTRA_PATH
-                    and extra_context.get('extra_path', '/') != '/'
+            if (not settings.FEINCMS_ALLOW_EXTRA_PATH and
+                    extra_context.get('extra_path', '/') != '/' and
                     # XXX Already inside application content.  I'm not sure
                     # whether this fix is really correct...
-                    and not extra_context.get('app_config')):
+                    not extra_context.get('app_config')):
                 raise Http404(str('Not found (extra_path %r on %r)') % (
                     extra_context.get('extra_path', '/'),
                     self.object,

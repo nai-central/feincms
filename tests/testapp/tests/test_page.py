@@ -6,13 +6,11 @@ from __future__ import absolute_import, unicode_literals
 
 from datetime import datetime, timedelta
 import os
-import re
 
 from django import forms, template
 from django.conf import settings
 from django.contrib.auth.models import User, AnonymousUser
 from django.contrib.contenttypes.models import ContentType
-from django.core import mail
 from django.contrib.sites.models import Site
 from django.core.urlresolvers import reverse
 from django.db import models
@@ -26,18 +24,15 @@ from django.utils.encoding import force_text
 from mptt.exceptions import InvalidMove
 
 from feincms import settings as feincms_settings
-from feincms.content.application.models import (
-    app_reverse, cycle_app_reverse_cache)
-from feincms.content.image.models import ImageContent
-from feincms.content.raw.models import RawContent
-from feincms.content.richtext.models import RichTextContent
+from feincms.apps import app_reverse
+from feincms.contents import RawContent, RichTextContent
 
 from feincms.context_processors import add_page_if_missing
 from feincms.models import ContentProxy
 from feincms.module.medialibrary.models import Category, MediaFile
 from feincms.module.page.extensions.navigation import PagePretender
 from feincms.module.page.models import Page
-from feincms.module.page.templatetags import feincms_page_tags
+from feincms.templatetags import feincms_page_tags
 from feincms.translations import short_language_code
 
 from .test_stuff import Empty
@@ -111,6 +106,10 @@ class PagesTestCase(TestCase):
             'filecontent_set-TOTAL_FORMS': 0,
             'filecontent_set-INITIAL_FORMS': 0,
             'filecontent_set-MAX_NUM_FORMS': 10,
+
+            'templatecontent_set-TOTAL_FORMS': 0,
+            'templatecontent_set-INITIAL_FORMS': 0,
+            'templatecontent_set-MAX_NUM_FORMS': 10,
 
             'applicationcontent_set-TOTAL_FORMS': 0,
             'applicationcontent_set-INITIAL_FORMS': 0,
@@ -375,20 +374,9 @@ class PagesTestCase(TestCase):
             'mediafilecontent_set-0-parent': 1,
             'mediafilecontent_set-0-type': 'default',
 
-            'imagecontent_set-TOTAL_FORMS': 1,
-            'imagecontent_set-INITIAL_FORMS': 0,
-            'imagecontent_set-MAX_NUM_FORMS': 10,
-
-            'imagecontent_set-0-parent': 1,
-            'imagecontent_set-0-position': 'default',
-
-            'contactformcontent_set-TOTAL_FORMS': 1,
-            'contactformcontent_set-INITIAL_FORMS': 0,
-            'contactformcontent_set-MAX_NUM_FORMS': 10,
-
-            'filecontent_set-TOTAL_FORMS': 1,
-            'filecontent_set-INITIAL_FORMS': 0,
-            'filecontent_set-MAX_NUM_FORMS': 10,
+            'templatecontent_set-TOTAL_FORMS': 1,
+            'templatecontent_set-INITIAL_FORMS': 0,
+            'templatecontent_set-MAX_NUM_FORMS': 10,
 
             'applicationcontent_set-TOTAL_FORMS': 1,
             'applicationcontent_set-INITIAL_FORMS': 0,
@@ -430,8 +418,6 @@ class PagesTestCase(TestCase):
         self.assertTrue(isinstance(page2.content.media, forms.Media))
 
         self.assertEqual(len(page2.content.all_of_type(RawContent)), 1)
-        self.assertEqual(len(page2.content.all_of_type((ImageContent,))), 0)
-        self.assertEqual(len(page2.content.all_of_type([ImageContent])), 0)
 
     def test_10_mediafile_and_imagecontent(self):
         self.create_default_page_set()
@@ -483,25 +469,6 @@ class PagesTestCase(TestCase):
 
         # this should not raise
         self.client.get(reverse('admin:page_page_change', args=(1,)))
-
-        # self.assertTrue('alt="something"' in page.content.main[1].render())
-        # Since it isn't an image
-
-        page.imagecontent_set.create(
-            image='somefile.jpg', region='main', position='default',
-            ordering=2)
-        page.filecontent_set.create(
-            file='somefile.jpg', title='thetitle', region='main', ordering=3)
-
-        # Reload page, reset _ct_inventory
-        page = Page.objects.get(pk=page.pk)
-        page._ct_inventory = None
-
-        self.assertTrue('somefile.jpg' in page.content.main[2].render())
-        self.assertTrue(re.search(
-            '<a .*href="/media/somefile\.jpg">.*thetitle.*</a>',
-            page.content.main[3].render(),
-            re.MULTILINE + re.DOTALL) is not None)
 
         page.mediafilecontent_set.update(mediafile=3)
         # this should not raise
@@ -1150,39 +1117,6 @@ class PagesTestCase(TestCase):
         page2.copy_content_from(page)
         self.assertEqual(len(page2.content.main), 1)
 
-    def test_22_contactform(self):
-        self.create_default_page_set()
-        page = Page.objects.get(pk=1)
-        page.active = True
-        page.template_key = 'theother'
-        page.save()
-
-        page.contactformcontent_set.create(
-            email='mail@example.com', subject='bla',
-            region='main', ordering=0)
-
-        request = Empty()
-        request.method = 'GET'
-        request.GET = {}
-        request.META = {}
-        request.user = Empty()
-        request.user.is_authenticated = lambda: False
-        request.user.get_and_delete_messages = lambda: ()
-
-        page.content.main[0].process(request)
-        self.assertTrue('form' in page.content.main[0].render(request=request))
-
-        self.client.post(page.get_absolute_url(), {
-            'name': 'So what\'s your name, dude?',
-            'email': 'another@example.com',
-            'subject': 'This is a test. Please calm down',
-            'content': 'Hell on earth.',
-        })
-
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(
-            mail.outbox[0].subject, 'This is a test. Please calm down')
-
     def test_23_navigation_extension(self):
         self.create_default_page_set()
 
@@ -1276,17 +1210,6 @@ class PagesTestCase(TestCase):
                 lambda: app_reverse(
                     'ac_module_root', 'testapp.applicationcontent_urls'))
 
-            cycle_app_reverse_cache()
-
-            self.assertNumQueries(
-                1,
-                lambda: app_reverse(
-                    'ac_module_root', 'testapp.applicationcontent_urls'))
-            self.assertNumQueries(
-                0,
-                lambda: app_reverse(
-                    'ac_module_root', 'testapp.applicationcontent_urls'))
-
         # This should not raise
         self.assertEqual(
             self.client.get(
@@ -1318,11 +1241,6 @@ class PagesTestCase(TestCase):
             self.client.get(
                 page.get_absolute_url() + 'response_decorated/').content)
 
-        # Test reversing of URLs (with overridden urls too)
-        page.applicationcontent_set.create(
-            region='main',
-            ordering=1,
-            urlconf_path='testapp.blog_urls')
         page1.applicationcontent_set.create(
             region='main',
             ordering=0,
@@ -1335,9 +1253,6 @@ class PagesTestCase(TestCase):
         self.assertContains(response, 'base:/test/')
 
         self.assertEqual(
-            app_reverse('blog_entry_list', 'testapp.blog_urls'),
-            '/test-page/test-child-page/')
-        self.assertEqual(
             app_reverse('ac_module_root', 'testapp.applicationcontent_urls'),
             '/test-page/test-child-page/')
         self.assertEqual(
@@ -1348,28 +1263,25 @@ class PagesTestCase(TestCase):
             urlconf_path='testapp.applicationcontent_urls').delete()
 
         self.assertEqual(
-            app_reverse('blog_entry_list', 'testapp.blog_urls'),
-            '/test-page/test-child-page/')
-        self.assertEqual(
             app_reverse('ac_module_root', 'whatever'),
             '/test-page/')
 
         # Ensure ApplicationContent's admin_fields support works properly
         self.login()
         response = self.client.get(
-            reverse('admin:page_page_change', args=(page.id,))
+            reverse('admin:page_page_change', args=(page1.id,))
         )
 
         self.assertContains(response, 'exclusive_subpages')
         self.assertContains(response, 'custom_field')
 
         # Check if admin_fields get populated correctly
-        app_ct = page.applicationcontent_set.all()[0]
+        app_ct = page1.applicationcontent_set.all()[0]
         app_ct.parameters =\
             '{"custom_field":"val42", "exclusive_subpages": false}'
         app_ct.save()
         response = self.client.get(
-            reverse('admin:page_page_change', args=(page.id,))
+            reverse('admin:page_page_change', args=(page1.id,))
         )
         self.assertContains(response, 'val42')
 
@@ -1474,7 +1386,7 @@ class PagesTestCase(TestCase):
         import zipfile
         zf = zipfile.ZipFile('test.zip', 'w')
         for i in range(10):
-            zf.writestr('test%d.jpg' % i, 'test%d' % i)
+            zf.writestr('test%d.txt' % i, 'test%d' % i)
         zf.close()
 
         with open('test.zip', 'rb') as handle:
@@ -1507,8 +1419,9 @@ class PagesTestCase(TestCase):
             '100x100')
 
         stats = list(MediaFile.objects.values_list('type', flat=True))
-        self.assertEqual(stats.count('image'), 12)
-        self.assertEqual(stats.count('other'), 0)
+        self.assertEqual(len(stats), 12)
+        self.assertEqual(stats.count('image'), 2)
+        self.assertEqual(stats.count('txt'), 10)
 
     def test_30_context_processors(self):
         self.create_default_page_set()
@@ -1744,3 +1657,21 @@ class PagesTestCase(TestCase):
             {'feincms_page': page1}, p, path='/test-page/whatsup/test/'))
         self.assertFalse(feincms_page_tags.page_is_active(
             {'feincms_page': page2}, p, path='/test-page/'))
+
+    def test_41_templatecontent(self):
+        page = self.create_page()
+        template = page.templatecontent_set.create(
+            region=0,
+            ordering=1,
+            template='templatecontent_1.html',
+        )
+
+        self.assertEqual(template.render(), 'TemplateContent_1\n')
+
+        # The empty form contains the template option.
+        self.login()
+        self.assertContains(
+            self.client.get(
+                reverse('admin:page_page_change', args=(page.id,))
+            ),
+            '<option value="templatecontent_1.html">template 1</option>')

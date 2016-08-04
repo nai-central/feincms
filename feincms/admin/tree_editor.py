@@ -66,27 +66,16 @@ def _build_tree_structure(queryset):
     mptt_opts = queryset.model._mptt_meta
     items = queryset.order_by(
         mptt_opts.tree_id_attr,
-        mptt_opts.left_attr)
-    values_list = items.values_list(
+        mptt_opts.left_attr,
+    ).values_list(
         "pk",
-        "%s_id" % mptt_opts.parent_attr)
-    for p_id, parent_id in values_list:
-        all_nodes[p_id] = []
-
-        if parent_id:
-            if parent_id not in all_nodes:
-                # This happens very rarely, but protect against parents that
-                # we have yet to iteratove over. Happens with broken MPTT
-                # hierarchy.
-                all_nodes[parent_id] = []
-                logger.warn(
-                    "Incorrect MPTT hierarchy for %s, node %d has left_attr"
-                    " < than one of its parents. Try rebuilding mptt data (use"
-                    " '%s._default_manager.rebuild()').",
-                    queryset.model.__name__, p_id, queryset.model.__name__)
-
-            all_nodes[parent_id].append(p_id)
-
+        "%s_id" % mptt_opts.parent_attr,
+    )
+    for p_id, parent_id in items:
+        all_nodes.setdefault(
+            str(parent_id) if parent_id else 0,
+            [],
+        ).append(p_id)
     return all_nodes
 
 
@@ -188,10 +177,9 @@ class ChangeList(main.ChangeList):
                 # Note: Django ORM is smart enough to drop additional
                 # clauses if the initial query set is unfiltered. This
                 # is good.
-                self.queryset = (
-                    self.queryset
-                    | self.model._default_manager.filter(
-                        reduce(lambda p, q: p | q, clauses)))
+                self.queryset |= self.model._default_manager.filter(
+                    reduce(lambda p, q: p | q, clauses),
+                )
 
         super(ChangeList, self).get_results(request)
 
@@ -202,8 +190,8 @@ class ChangeList(main.ChangeList):
                 request, item)
 
             item.feincms_addable = (
-                item.feincms_changeable
-                and self.model_admin.has_add_permission(request, item))
+                item.feincms_changeable and
+                self.model_admin.has_add_permission(request, item))
 
 
 # ------------------------------------------------------------------------
@@ -320,17 +308,6 @@ class TreeEditor(ExtensionModelAdmin):
                     result_func = _fn(attr)
                 self._ajax_editable_booleans[attr] = result_func
 
-    def _refresh_changelist_caches(self):
-        """
-        Refresh information used to show the changelist tree structure such as
-        inherited active/inactive states etc.
-
-        XXX: This is somewhat hacky, but since it's an internal method, so be
-        it.
-        """
-
-        pass
-
     def _toggle_boolean(self, request):
         """
         Handle an AJAX toggle_boolean request
@@ -376,9 +353,6 @@ class TreeEditor(ExtensionModelAdmin):
             setattr(obj, attr, new_state)
             obj.save()
 
-            # ???: Perhaps better a post_save signal?
-            self._refresh_changelist_caches()
-
             # Construct html snippets to send back to client for status update
             data = self._ajax_editable_booleans[attr](self, obj)
 
@@ -417,11 +391,14 @@ class TreeEditor(ExtensionModelAdmin):
 
             return HttpResponseBadRequest('Oops. AJAX request not understood.')
 
-        self._refresh_changelist_caches()
-
         extra_context = extra_context or {}
         extra_context['tree_structure'] = mark_safe(
             json.dumps(_build_tree_structure(self.get_queryset(request))))
+        extra_context['node_levels'] = mark_safe(json.dumps(
+            dict(self.get_queryset(request).order_by().values_list(
+                'pk', self.model._mptt_meta.level_attr
+            ))
+        ))
 
         return super(TreeEditor, self).changelist_view(
             request, extra_context, *args, **kwargs)

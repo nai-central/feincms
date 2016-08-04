@@ -74,8 +74,8 @@ class Thumbnailer(object):
         else:
             try:
                 generate = (
-                    storage.modified_time(miniature)
-                    < storage.modified_time(filename))
+                    storage.modified_time(miniature) <
+                    storage.modified_time(filename))
             except (NotImplementedError, AttributeError):
                 # storage does NOT support modified_time
                 generate = False
@@ -124,6 +124,8 @@ class Thumbnailer(object):
 
                 storage.delete(miniature)
                 storage.save(miniature, ContentFile(raw_data))
+
+                image.close()
 
 
 class CropscaleThumbnailer(Thumbnailer):
@@ -178,6 +180,8 @@ class CropscaleThumbnailer(Thumbnailer):
 
                 storage.delete(miniature)
                 storage.save(miniature, ContentFile(raw_data))
+
+                image.close()
 
 
 @register.filter
