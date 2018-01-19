@@ -19,7 +19,7 @@ class Migration(migrations.Migration):
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
                 ('title', models.CharField(max_length=200, verbose_name='title')),
                 ('slug', models.SlugField(max_length=150, verbose_name='slug')),
-                ('parent', models.ForeignKey(related_name='children', verbose_name='parent', blank=True, to='medialibrary.Category', null=True)),
+                ('parent', models.ForeignKey(related_name='children', verbose_name='parent', blank=True, to='medialibrary.Category', null=True, on_delete=models.CASCADE)),
             ],
             options={
                 'ordering': ['parent__title', 'title'],
@@ -47,7 +47,7 @@ class Migration(migrations.Migration):
                 ('language_code', models.CharField(default=b'en', verbose_name='language', max_length=10, editable=False, choices=[(b'en', b'English')])),
                 ('caption', models.CharField(max_length=200, verbose_name='caption')),
                 ('description', models.TextField(verbose_name='description', blank=True)),
-                ('parent', models.ForeignKey(related_name='translations', to='medialibrary.MediaFile')),
+                ('parent', models.ForeignKey(related_name='translations', to='medialibrary.MediaFile', on_delete=models.CASCADE)),
             ],
             options={
                 'verbose_name': 'media file translation',
